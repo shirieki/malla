@@ -21,7 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Cuarto Semestre
         { id: "calcAvanzado", name: "Cálculo Avanzado y Aplicaciones", prereqs: ["varias", "edo"] },
-        { id: "mecanica", name: "Mecánica", prereqs: ["calc", "algebra","fisicaModerna"] },
+        { id: "mecanica", name: "Mecánica", prereqs: ["calc", "algebra"] },
         { id: "metodos", name: "Métodos Experimentales", prereqs: ["fisicaModerna"] },
         { id: "quimica", name: "Química", prereqs: ["fisicaModerna"] },
         { id: "economia", name: "Economía", prereqs: ["varias"] },
