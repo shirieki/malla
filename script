@@ -1,246 +1,72 @@
-// script.js - Lógica de la malla interactiva
-// Guardado automático en localStorage, desbloqueo por prerrequisitos, UI rosa
+// script.js — Lógica de la malla interactiva (1 columna por semestre)
+});
 
-(function(){
-  // Definición de la malla (cursos y relaciones "abre")
-  const courses = [
-    // Semestre Verano 2025
-    { id: 'calculo_diff', title: 'Cálculo diferencial e Integral', semester: 'Semestre Verano 2025', opens: ['calculo_varias', 'edo', 'mecanica', 'metodos_experimentales'] },
-    { id: 'algebra_lineal', title: 'Álgebra Lineal', semester: 'Semestre Verano 2025', opens: ['calculo_varias', 'edo', 'mecanica'] },
 
-    // Tercer Semestre
-    { id: 'fisica_moderna', title: 'Introducción a la Física Moderna', semester: 'Tercer Semestre', opens: ['metodos_experimentales', 'quimica'] },
-    { id: 'calculo_varias', title: 'Cálculo en Varias Variables', semester: 'Tercer Semestre', opens: ['economia', 'calculo_avanzado', 'electromagnetismo'] },
-    { id: 'edo', title: 'Ecuaciones Diferenciales Ordinarias', semester: 'Tercer Semestre', opens: ['calculo_avanzado', 'electromagnetismo'] },
-    { id: 'electivo_fi_1', title: 'Electivo Formación Integral (DR/EH/EI)', semester: 'Tercer Semestre', opens: [] },
-    { id: 'electivo_fi_2', title: 'Electivo Formación Integral (DR/EH/EI)', semester: 'Tercer Semestre', opens: [] },
+container.appendChild(card);
+});
 
-    // Cuarto Semestre
-    { id: 'calculo_avanzado', title: 'Cálculo Avanzado y Aplicaciones', semester: 'Cuarto Semestre', opens: [] },
-    { id: 'mecanica', title: 'Mecánica', semester: 'Cuarto Semestre', opens: ['electromagnetismo'] },
-    { id: 'metodos_experimentales', title: 'Métodos Experimentales', semester: 'Cuarto Semestre', opens: ['modulo_interdisciplinario'] },
-    { id: 'quimica', title: 'Química', semester: 'Cuarto Semestre', opens: ['termodinamica'] },
-    { id: 'economia', title: 'Economía', semester: 'Cuarto Semestre', opens: [] },
 
-    // Semestre Verano 2026
-    { id: 'electromagnetismo', title: 'Electromagnetismo', semester: 'Semestre Verano 2026', opens: [] },
-    { id: 'modulo_interdisciplinario', title: 'Módulo Interdisciplinario', semester: 'Semestre Verano 2026', opens: [] },
-    // Añadido: Termodinámica (mencionada como "abre" por Química)
-    { id: 'termodinamica', title: 'Termodinámica', semester: 'Semestre Verano 2026', opens: [] }
-  ];
+applyStyles();
+}
 
-  // Crear mapa id->curso
-  const courseMap = Object.fromEntries(courses.map(c => [c.id, c]));
 
-  // Calcular prerrequisitos (reverse of opens)
-  courses.forEach(c => c.prereqs = []);
-  courses.forEach(c => {
-    c.opens.forEach(tid => {
-      if (courseMap[tid]) courseMap[tid].prereqs.push(c.id);
-    });
-  });
+function applyStyles(){
+courses.forEach(c =>{
+const el = document.getElementById(`course-${c.id}`);
+if(!el) return;
+const btn = el.querySelector('button');
+const state = estados[c.id] || 'locked';
+el.classList.remove('locked','available','passed');
+el.classList.add(state);
+if(state === 'locked'){
+btn.disabled = true;
+btn.textContent = 'Bloqueado';
+btn.className = 'btn ghost';
+} else if(state === 'available'){
+btn.disabled = false;
+btn.textContent = 'Aprobar';
+btn.className = 'btn primary';
+} else if(state === 'passed'){
+btn.disabled = false;
+btn.textContent = 'Aprobado ✓';
+btn.className = 'btn outline';
+}
+});
+}
 
-  // Estados posibles: 'locked' | 'available' | 'passed'
-  const STORAGE_KEY = 'malla_estados_v1';
-  let estados = loadState();
 
-  function loadState(){
-    try{
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if(!raw) return {};
-      return JSON.parse(raw);
-    } catch(e){
-      console.warn('No se pudo cargar el estado:', e);
-      return {};
-    }
-  }
-  function saveState(){
-    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(estados)); } catch(e){ console.warn('No se pudo guardar el estado:', e); }
-  }
+function onClickCourse(ev){
+const id = ev.currentTarget.dataset.id;
+const cur = estados[id];
+if(cur === 'available'){
+estados[id] = 'passed';
+// desbloquear dependientes si cumplen
+courses.forEach(c => {
+if(c.prereqs.includes(id)){
+const ok = c.prereqs.every(p => estados[p] === 'passed');
+if(ok && estados[c.id] !== 'passed') estados[c.id] = 'available';
+}
+});
+} else if(cur === 'passed'){
+// toggle: quitar aprobacion -> bloquear dependientes recursivamente
+estados[id] = 'available';
+const visited = new Set();
+function dfs(nodeId){
+courses.forEach(c =>{
+if(c.prereqs.includes(nodeId)){
+if(visited.has(c.id)) return; visited.add(c.id);
+const ok = c.prereqs.every(p => estados[p] === 'passed');
+if(!ok) estados[c.id] = 'locked';
+dfs(c.id);
+}
+});
+}
+dfs(id);
+}
+saveState(); applyStyles();
+}
 
-  // Inicializar estados: si no hay prerrequisitos => available, si hay y están todas pasadas => available, sino locked
-  function initStates(){
-    courses.forEach(c => {
-      if(!estados[c.id]) estados[c.id] = 'locked';
-    });
-    // Cursos sin prereqs => available
-    courses.forEach(c => {
-      if(!c.prereqs || c.prereqs.length === 0){
-        if(estados[c.id] !== 'passed') estados[c.id] = 'available';
-      }
-    });
-    // Si algún curso tiene todos sus prereqs passed -> available
-    changed = true;
-    do{
-      changed = false;
-      courses.forEach(c => {
-        if(estados[c.id] === 'locked'){
-          const all = c.prereqs && c.prereqs.length ? c.prereqs.every(p => estados[p] === 'passed') : true;
-          if(all){ estados[c.id] = 'available'; changed = true; }
-        }
-      });
-    } while(changed);
-    saveState();
-  }
 
-  // Renderizado
-  function buildUI(){
-    const container = document.getElementById('semesters');
-    container.innerHTML = '';
-    // agrupar por semestre en orden especifico
-    const order = ['Semestre Verano 2025','Tercer Semestre','Cuarto Semestre','Semestre Verano 2026'];
-    order.forEach(sem => {
-      const semDiv = document.createElement('div');
-      semDiv.className = 'semester';
-      const h = document.createElement('h2'); h.textContent = sem;
-      semDiv.appendChild(h);
-
-      const lista = courses.filter(c => c.semester === sem);
-      lista.forEach(c => {
-        const courseDiv = document.createElement('div');
-        courseDiv.className = 'course';
-        courseDiv.id = `course-${c.id}`;
-
-        const left = document.createElement('div');
-        left.innerHTML = `<strong>${c.title}</strong><br><small>${c.prereqs && c.prereqs.length ? 'Prerrequisitos: ' + c.prereqs.map(id=> courseMap[id].title).join(', ') : 'Sin prerrequisitos'}</small>`;
-
-        const btn = document.createElement('button');
-        btn.textContent = 'Aprobar';
-        btn.dataset.id = c.id;
-        btn.addEventListener('click', onClickCourse);
-
-        courseDiv.appendChild(left);
-        courseDiv.appendChild(btn);
-        semDiv.appendChild(courseDiv);
-      });
-
-      container.appendChild(semDiv);
-    });
-
-    applyStylesToStates();
-  }
-
-  function applyStylesToStates(){
-    courses.forEach(c => {
-      const el = document.getElementById(`course-${c.id}`);
-      if(!el) return;
-      const btn = el.querySelector('button');
-      const state = estados[c.id] || 'locked';
-      el.classList.remove('locked','available','passed');
-      el.classList.add(state);
-      // accesibilidad: label distintas
-      if(state === 'locked'){
-        btn.disabled = true;
-        btn.textContent = 'Bloqueado';
-        el.style.opacity = '0.65';
-        el.style.border = '2px dashed rgba(214,51,132,0.25)';
-      } else if(state === 'available'){
-        btn.disabled = false;
-        btn.textContent = 'Aprobar';
-        el.style.opacity = '1';
-        el.style.border = '2px solid rgba(214,51,132,0.35)';
-      } else if(state === 'passed'){
-        btn.disabled = false;
-        btn.textContent = 'Aprobado ✓';
-        el.style.opacity = '1';
-        el.style.border = '2px solid rgba(34,139,34,0.25)';
-      }
-    });
-  }
-
-  function onClickCourse(ev){
-    const id = ev.currentTarget.dataset.id;
-    const cur = estados[id];
-    if(cur === 'available'){
-      estados[id] = 'passed';
-      // desbloquear cursos que dependen de este si cumplen todos sus prereqs
-      const targets = courses.filter(c => c.prereqs && c.prereqs.includes(id));
-      targets.forEach(t => {
-        const allPassed = t.prereqs.every(p => estados[p] === 'passed');
-        if(allPassed && estados[t.id] !== 'passed') estados[t.id] = 'available';
-      });
-    } else if(cur === 'passed'){
-      // Si se clickea otra vez sobre aprobado, lo desmarcamos (toggle) y bloqueamos dependientes recursivamente
-      estados[id] = 'available';
-      // recursivamente bloquear todos los cursos que dependen directa o indirectamente de este si sus prereqs no están todos passed
-      const visited = new Set();
-      function dfsBlock(nodeId){
-        courses.forEach(c => {
-          if(c.prereqs && c.prereqs.includes(nodeId)){
-            if(visited.has(c.id)) return;
-            visited.add(c.id);
-            // si no todos los prereqs son passed, poner locked (si no están passed independientemente)
-            const allPassed = c.prereqs.every(p => estados[p] === 'passed');
-            if(!allPassed){
-              estados[c.id] = 'locked';
-            }
-            dfsBlock(c.id);
-          }
-        });
-      }
-      dfsBlock(id);
-    }
-    saveState();
-    applyStylesToStates();
-  }
-
-  // Botones extra: reiniciar
-  function addControls(){
-    const container = document.getElementById('semesters');
-    const ctrl = document.createElement('div');
-    ctrl.style.margin = '20px 0';
-
-    const reset = document.createElement('button');
-    reset.textContent = 'Reiniciar malla';
-    reset.style.padding = '8px 12px';
-    reset.style.background = '#fff';
-    reset.style.border = '2px solid #d63384';
-    reset.style.color = '#d63384';
-    reset.style.borderRadius = '8px';
-    reset.style.cursor = 'pointer';
-    reset.addEventListener('click', ()=>{
-      if(!confirm('¿Eliminar progreso y reiniciar malla?')) return;
-      localStorage.removeItem(STORAGE_KEY);
-      estados = {};
-      initStates();
-      buildUI();
-    });
-
-    const exportBtn = document.createElement('button');
-    exportBtn.textContent = 'Exportar progreso (JSON)';
-    exportBtn.style.marginLeft = '12px';
-    exportBtn.style.padding = '8px 12px';
-    exportBtn.style.background = '#d63384';
-    exportBtn.style.border = 'none';
-    exportBtn.style.color = '#fff';
-    exportBtn.style.borderRadius = '8px';
-    exportBtn.style.cursor = 'pointer';
-    exportBtn.addEventListener('click', ()=>{
-      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(estados, null, 2));
-      const a = document.createElement('a'); a.href = dataStr; a.download = 'progreso_malla.json'; a.click();
-    });
-
-    ctrl.appendChild(reset);
-    ctrl.appendChild(exportBtn);
-    container.insertBefore(ctrl, container.firstChild);
-  }
-
-  // Inyección de estilos extras (rosas) para consistencia
-  function injectStyles(){
-    const css = `
-      .course { transition: all 180ms ease-in-out; }
-      .course.available { background: linear-gradient(135deg,#ffd7ea,#ffb6d9); }
-      .course.locked { background: linear-gradient(135deg,#ffecf5,#ffd7ea); filter: grayscale(0.02); }
-      .course.passed { background: linear-gradient(135deg,#e6fff6,#ccffd5); }
-      .course button { min-width: 100px; }
-    `;
-    const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
-  }
-
-  // Inicialización
-  injectStyles();
-  initStates();
-  buildUI();
-  addControls();
-
-})();
+// Controls: reset, export, import
+function addControls(){
+document.getElementById('resetBtn').addEvent
